@@ -39,7 +39,10 @@ EXAMPLES = {
     "registration": "KR 10-2456789 B1 / US 11,123,456 B2 / EP 3 123 456 B1 / JP 7123456 B2 / CN 114123456 B",
 }
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-NOT_APPLICABLE = {"해당 없음(미등록)", common.FAILURE_MARK}
+# SOURCES.md 문헌번호 표기 표준: 등록이 출원공개보다 먼저 이뤄지면 공개공보가 발행되지 않는다.
+# 그런 건은 공개번호를 지어내지 않고 아래 표기를 쓴다.
+NOT_PUBLISHED = "해당 없음(출원공개 없이 등록)"
+NOT_APPLICABLE = {"해당 없음(미등록)", NOT_PUBLISHED, common.FAILURE_MARK}
 
 
 def check_number(value: str, kind: str) -> str | None:
@@ -122,7 +125,12 @@ def validate(records: list, numbers_only: bool) -> list[str]:
 
         for field in ("filing_date", "publication_date", "priority_date"):
             value = str(rec.get(field, "")).strip()
-            if value and not DATE_RE.match(value) and not value.startswith(common.FAILURE_MARK):
+            if (
+                value
+                and not DATE_RE.match(value)
+                and not value.startswith(common.FAILURE_MARK)
+                and value not in NOT_APPLICABLE
+            ):
                 problems.append(f"{rid}: {field} 가 YYYY-MM-DD 형식이 아니다: {value!r}")
 
         checked = str(rec.get("legal_status_checked_on", "")).strip()
