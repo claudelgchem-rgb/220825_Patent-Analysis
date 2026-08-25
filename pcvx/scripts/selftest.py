@@ -133,7 +133,7 @@ def fixture_records() -> dict:
                 "representative_doc": "JP 2022-123456 A",
                 "title_original": "表本電極材料",
                 "title_ko": "표본 전극 재료",
-                "application_number": "JP 2022-123456 A",
+                "application_number": "JP 2022-123456",
                 "filing_date": "2022-02-14",
                 "publication_number": "JP 2022-123456 A",
                 "publication_date": "2022-08-22",

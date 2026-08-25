@@ -52,14 +52,38 @@ REGISTRATION_STATUSES = {
 
 FAILURE_MARK = "[확보 실패]"
 
-# 문헌번호 표기 표준 (SOURCES.md 와 동일)
+# 문헌번호 표기 표준 (SOURCES.md 와 동일).
+#
+# 출원번호·공개번호·등록번호는 서로 다른 번호이고 형식도 다르다.
+# 한 벌의 정규식으로 세 가지를 다 받으면, 출원번호 칸에 공개번호를 넣어도 통과해 버린다.
+# 그래서 칸의 종류별로 따로 검사한다.
 NUMBER_PATTERNS = {
-    "KR": re.compile(r"^KR\s(10-\d{4}-\d{7}(\s?A)?|10-\d{7}(\s?B[12])?)$"),
-    "US": re.compile(r"^US\s(\d{2}/\d{3},\d{3}|\d{4}/\d{7}\s?A1|[\d,]{7,12}\s?(B1|B2))$"),
-    "EP": re.compile(r"^EP\s\d\s?\d{3}\s?\d{3}\s?(A1|A2|B1)$"),
-    "JP": re.compile(r"^JP\s(\d{4}-\d{6}\s?A|\d{6,7}\s?B[12])$"),
-    "CN": re.compile(r"^CN\s\d{9,12}\s?[ABU]\d?$"),
-    "WO": re.compile(r"^WO\s\d{4}/\d{6}\s?A\d$"),
+    # 출원번호 — 각국 특허청이 접수 시 부여하는 번호. 공보 종별코드(A/B1/B2)가 붙지 않는다.
+    "application": {
+        "KR": re.compile(r"^KR\s10-\d{4}-\d{7}$"),
+        "US": re.compile(r"^US\s(\d{2}/\d{3},\d{3}|\d{2}/\d{6})$"),
+        "EP": re.compile(r"^EP\s\d{8}\.\d$"),
+        "JP": re.compile(r"^JP\s\d{4}-\d{6}$"),
+        "CN": re.compile(r"^CN\s\d{12}\.[\dX]$"),  # 끝자리는 검사숫자이며 X 가 올 수 있다
+        "WO": re.compile(r"^PCT/[A-Z]{2}\d{4}/\d{6}$"),
+    },
+    # 공개번호 — 출원 내용이 일반에 공표될 때 붙는 번호. 종별코드 A 계열.
+    "publication": {
+        "KR": re.compile(r"^KR\s10-\d{4}-\d{7}\s?A$"),
+        "US": re.compile(r"^US\s\d{4}/\d{7}\s?A1$"),
+        "EP": re.compile(r"^EP\s\d\s?\d{3}\s?\d{3}\s?A\d$"),
+        "JP": re.compile(r"^JP\s\d{4}-\d{6}\s?A$"),
+        "CN": re.compile(r"^CN\s\d{9,12}\s?A$"),
+        "WO": re.compile(r"^WO\s\d{4}/\d{6}\s?A\d$"),
+    },
+    # 등록번호 — 심사를 통과해 권리가 발생할 때 붙는 번호. 종별코드 B 계열(실용신안은 U).
+    "registration": {
+        "KR": re.compile(r"^KR\s(10-\d{7}\s?B[12]|20-\d{7}\s?Y[12])$"),
+        "US": re.compile(r"^US\s[\d,]{7,12}\s?(B1|B2)$"),
+        "EP": re.compile(r"^EP\s\d\s?\d{3}\s?\d{3}\s?B\d$"),
+        "JP": re.compile(r"^JP\s\d{6,7}\s?(B[12]|U)$"),
+        "CN": re.compile(r"^CN\s\d{9,12}\s?[BU]$"),
+    },
 }
 
 

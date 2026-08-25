@@ -66,6 +66,20 @@ def break_application_as_registration(ws: Path) -> None:
     common.write_json(ws / "records.json", data)
 
 
+def break_publication_as_application(ws: Path) -> None:
+    data = common.read_json(ws / "records.json")
+    rec = data["records"][0]
+    rec["application_number"] = rec["publication_number"]  # 공개번호를 출원번호 칸에
+    common.write_json(ws / "records.json", data)
+
+
+def break_registration_as_publication(ws: Path) -> None:
+    data = common.read_json(ws / "records.json")
+    rec = data["records"][0]
+    rec["publication_number"] = rec["registration_number"]  # 등록번호를 공개번호 칸에
+    common.write_json(ws / "records.json", data)
+
+
 def break_stale_legal_check(ws: Path) -> None:
     data = common.read_json(ws / "records.json")
     data["records"][0]["legal_status_checked_on"] = "2020-01-01"
@@ -121,6 +135,8 @@ CASES = [
     ("지정 데이터베이스 하나를 건너뛰면 G2가 잡는다", break_missing_source, "G2"),
     ("같은 패밀리를 두 건으로 세면 G2가 잡는다", break_family_duplicate, "G2"),
     ("출원번호를 등록번호로 쓰면 G3가 잡는다", break_application_as_registration, "G3"),
+    ("공개번호를 출원번호 칸에 넣으면 G3가 잡는다", break_publication_as_application, "G3"),
+    ("등록번호를 공개번호 칸에 넣으면 G3가 잡는다", break_registration_as_publication, "G3"),
     ("법적상태 확인일이 오래되면 레코드 검사가 잡는다", break_stale_legal_check, "records"),
     ("검증 항목을 빠뜨리면 G4가 잡는다", break_missing_verification, "G4"),
     ("'상' 등급에 출처가 하나뿐이면 G4가 잡는다", break_high_grade_single_source, "G4"),

@@ -25,23 +25,55 @@ REQUIRED = [
     "independent_claim_text", "claim_elements", "plain_explanation",
 ]
 
-NUMBER_FIELDS = ["application_number", "publication_number", "registration_number"]
+NUMBER_FIELDS = {
+    "application_number": "application",
+    "publication_number": "publication",
+    "registration_number": "registration",
+}
+FIELD_LABEL = {
+    "application": "출원번호", "publication": "공개번호", "registration": "등록번호",
+}
+EXAMPLES = {
+    "application": "KR 10-2021-0012345 / US 17/123,456 / EP 24729299.8 / JP 2016-103846 / CN 202210219113.5",
+    "publication": "KR 10-2022-0098765 A / US 2022/0123456 A1 / EP 3 123 456 A1 / JP 2022-123456 A / CN 114123456 A",
+    "registration": "KR 10-2456789 B1 / US 11,123,456 B2 / EP 3 123 456 B1 / JP 7123456 B2 / CN 114123456 B",
+}
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 NOT_APPLICABLE = {"해당 없음(미등록)", common.FAILURE_MARK}
 
 
-def check_number(value: str) -> str | None:
-    """표기 위반이면 사유를 돌려준다. 통과면 None."""
+def check_number(value: str, kind: str) -> str | None:
+    """표기 위반이면 사유를 돌려준다. 통과면 None.
+
+    칸의 종류(출원/공개/등록)에 맞는 형식인지 본다. 공개번호를 출원번호 칸에 넣는 것은
+    통과시키지 않는다 — 세 번호는 서로 다른 번호다.
+    """
     value = value.strip()
     if value in NOT_APPLICABLE or value.startswith(common.FAILURE_MARK):
         return None
+    table = common.NUMBER_PATTERNS[kind]
     head = value.split(" ")[0].upper()
-    pattern = common.NUMBER_PATTERNS.get(head)
+    if head.startswith("PCT/"):
+        head = "WO"
+    pattern = table.get(head)
     if pattern is None:
-        return f"국가코드로 시작하지 않는다: {value!r} (예: 'KR 10-2021-0012345')"
-    if not pattern.match(value):
-        return f"{head} 표기 표준에 맞지 않는다: {value!r}"
-    return None
+        return (
+            f"{FIELD_LABEL[kind]} 칸인데 국가코드로 시작하지 않는다: {value!r}. "
+            f"형식 예: {EXAMPLES[kind]}"
+        )
+    if pattern.match(value):
+        return None
+    # 다른 종류의 번호를 잘못 넣은 것인지 짚어 준다.
+    for other, other_table in common.NUMBER_PATTERNS.items():
+        if other == kind:
+            continue
+        other_pattern = other_table.get(head)
+        if other_pattern and other_pattern.match(value):
+            return (
+                f"{FIELD_LABEL[kind]} 칸에 {FIELD_LABEL[other]}를 넣었다: {value!r}. "
+                f"세 번호는 서로 다른 번호다. {FIELD_LABEL[kind]} 형식 예: {EXAMPLES[kind]}"
+            )
+    return f"{head} {FIELD_LABEL[kind]} 표기 표준에 맞지 않는다: {value!r}. 형식 예: {EXAMPLES[kind]}"
 
 
 def validate(records: list, numbers_only: bool) -> list[str]:
@@ -51,12 +83,12 @@ def validate(records: list, numbers_only: bool) -> list[str]:
     for rec in records:
         rid = rec.get("id") or "<id 없음>"
 
-        for field in NUMBER_FIELDS:
+        for field, kind in NUMBER_FIELDS.items():
             raw = rec.get(field)
             if raw is None or str(raw).strip() == "":
                 problems.append(f"{rid}: {field} 가 비어 있다. 값이 없으면 '[확보 실패]' 또는 '해당 없음(미등록)' 을 쓴다.")
                 continue
-            why = check_number(str(raw))
+            why = check_number(str(raw), kind)
             if why:
                 problems.append(f"{rid}: {field} {why}")
 
