@@ -1,0 +1,14 @@
+# 작업 중간 산출물 — 조사할 때마다 새로 만들어진다.
+pcvx/workspace/*
+!pcvx/workspace/.gitkeep
+
+# 완성 산출물 — 저장소에 커밋하지 않는다.
+outputs/
+pcvx/workspace/render/
+
+__pycache__/
+*.pyc
+.DS_Store
+~$*.docx
+~$*.pptx
+~$*.xlsx
