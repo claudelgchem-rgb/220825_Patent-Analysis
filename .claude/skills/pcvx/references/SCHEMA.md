@@ -67,7 +67,7 @@
   "application_number": "", "filing_date": "YYYY-MM-DD",
   "publication_number": "", "publication_date": "YYYY-MM-DD",
   "registration_number": "", "registration_date": "",
-  "registration_status": "등록 | 출원 중(등록 미확인) | 거절 | 소멸 | 포기 | 확보 실패",
+  "registration_status": "등록 | 출원 중(등록 미확인) | 거절 | 소멸 | 포기 | 취하 | 확보 실패",
   "priority_date": "YYYY-MM-DD",
   "expiry_estimate": "존속기간 만료 예정일",
   "legal_status": "", "legal_status_checked_on": "YYYY-MM-DD",
