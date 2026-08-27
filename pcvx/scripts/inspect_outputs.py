@@ -15,7 +15,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import common  # noqa: E402
 
 # 청구항은 구성요소별로 줄바꿈하므로 줄 끝 쉼표는 정상이다. 조사로 끝나는 경우만 미완성으로 본다.
-DANGLING = re.compile(r"(은|는|이|가|을|를|와|과|의|에|으로|로|및|또는)$")
+# '및'·'또는' 은 청구항 구성요소를 잇는 관용 표기라 줄 끝에 오는 것이 정상이므로 뺀다
+# (예: "…하는 단계; 및"). 원문 인용이므로 고칠 수도 없다.
+DANGLING = re.compile(r"(?<!또)(은|는|이|가|을|를|와|과|의|에|으로|로)$")  # '또는' 은 접속사다
+# '…는가', '…은가' 처럼 의문형 종결어미로 끝나는 제목은 조사로 끝난 것이 아니다.
+INTERROGATIVE = re.compile(r"(는가|은가|ㄴ가|런가|인가|난가)$")
+# 청구항 원문 인용은 문장 단위가 아니라 구성요소 단위로 끊는다. 원문이므로 고칠 수 없고,
+# 조사로 끝나는 것이 정상이다(예: "청구항 1. … 젤로서, 상기 젤은").
+CLAIM_QUOTE = re.compile(r"^(청구항|【청구항|\[청구항|제?\s*\d+\s*항|[A-Za-z]\)|\([A-Za-z0-9]\)|[a-z]\))")
 
 
 def inspect_docx(path: Path, strict: bool) -> list[str]:
@@ -42,7 +49,12 @@ def inspect_docx(path: Path, strict: bool) -> list[str]:
     if strict:
         for p in paragraphs:
             body = p.text.strip()
-            if len(body) > 25 and DANGLING.search(body):
+            if (
+                len(body) > 25
+                and DANGLING.search(body)
+                and not INTERROGATIVE.search(body)
+                and not CLAIM_QUOTE.match(body)
+            ):
                 problems.append(f"- {path.name}: 미완성으로 끝나는 문장 — {body[-45:]!r}")
     return problems
 

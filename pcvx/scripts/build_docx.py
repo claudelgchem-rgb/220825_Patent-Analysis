@@ -220,7 +220,9 @@ def main() -> int:
     add_limits(doc)
     add_appendix(doc, queries, attempts, records)
 
-    slug = common.slugify(topic.get("topic", "무제"))
+    # topic.json 이 축약 슬러그를 이미 확정해 두었으면 그것을 쓴다.
+    # topic 원문을 30자에서 자르면 괄호가 열린 채 끊긴 파일명이 나온다.
+    slug = common.slugify(topic.get("topic_slug") or topic.get("topic", "무제"))
     out = common.output_dir() / f"PCVX_특허조사보고서_{slug}_{env['as_of_compact']}.docx"
     out.parent.mkdir(parents=True, exist_ok=True)
     doc.save(out)

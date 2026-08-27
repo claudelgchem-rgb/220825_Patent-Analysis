@@ -80,11 +80,26 @@ def slide_chart(prs, context: dict) -> None:
         prs, "출원은 연도별로 이렇게 움직였다",
         "연도별 출원 추이다. 세로축은 건수, 가로축은 우선일 기준 연도다.",
     )
-    yearly = context.get("yearly_filings") or []
+    full = context.get("yearly_filings") or []
+    yearly = context.get("yearly_filings_chart") or full
     if not yearly:
         add_body(slide, ["연도별 출원 추이 자료 " + common.FAILURE_MARK,
-                         "a6_context.json 의 yearly_filings 가 비어 있다."])
+                         "a6_context.json 의 yearly_filings_chart 와 yearly_filings 가 모두 비어 있다."])
         return
+    if full and len(yearly) < len(full):
+        span = f"{full[0].get('year')}~{full[-1].get('year')}"
+        slide.shapes.title.text = (
+            f"출원은 최근 {len(yearly)}개 연도에 이렇게 움직였다"
+        )
+        for para in slide.shapes.title.text_frame.paragraphs:
+            for run in para.runs:
+                run.font.size = Pt(26)
+                run.font.bold = True
+        slide.notes_slide.notes_text_frame.text = (
+            f"연도별 출원 추이다. 세로축은 건수, 가로축은 우선일 기준 연도다. "
+            f"가독성을 위해 최근 {len(yearly)}개 연도만 그렸다. "
+            f"전체 구간은 {span} 이며 그 이전 구간을 포함한 전체 표는 특허대장 엑셀 파일의 특허대장 시트에서 확인할 수 있다."
+        )
     data = CategoryChartData()
     data.categories = [str(y.get("year")) for y in yearly]
     data.add_series("출원 건수", [int(y.get("count", 0)) for y in yearly])
@@ -132,7 +147,13 @@ def main() -> int:
     slide_cover(prs, env, topic)
 
     # 2. 목차
-    add_slide(prs, "오늘 보고 순서", "보고 순서를 먼저 안내한다.")
+    add_slide(
+        prs, "오늘 보고 순서",
+        f"보고 순서를 먼저 안내한다. 전체 {len(records)}건을 여섯 토막으로 나누어 본다. "
+        "핵심 요약 3장에서 결론을 먼저 말하고, 기술 분야 개관에서 갈래와 연도별 추이를 보이고, "
+        "주요 특허 8건은 한 장에 한 건씩 카드로 넘긴다. 목록 표는 발췌이며 전체는 특허대장 엑셀에 있다. "
+        "마지막 두 장은 신뢰도 등급 분포와 이 조사의 한계다. 질의응답은 마지막 장에서 받는다.",
+    )
     add_body(prs.slides[-1], [
         "1. 핵심 요약", "2. 기술 분야 개관", "3. 주요 특허 상세",
         "4. 특허 전체 목록", "5. 신뢰도 등급 분포", "6. 한계와 다음 단계",
@@ -169,13 +190,40 @@ def main() -> int:
     # 6~7. 기술 분야 개관
     slide_chart(prs, context)
     recent = context.get("recent_12m") or []
-    add_slide(prs, "최근 12개월 동향은 이렇게 요약된다",
-              "최근 12개월 안에 공개·등록된 건에서 확인된 변화다.")
-    add_body(prs.slides[-1], [f"· {common.cell(r.get('headline'))}" for r in recent[:MAX_LINES]]
-             or ["최근 12개월 신규 공개 0건으로 확인되었다."])
+    rstats = context.get("recent_12m_stats") or {}
+    recent_notes = " ".join(
+        f"({pos}) {common.cell(r.get('headline'))}" for pos, r in enumerate(recent, start=1)
+    ) or "최근 12개월 창에서 확인된 신규 공개·등록 건이 없다."
+    add_slide(
+        prs, "최근 12개월 동향은 이렇게 요약된다",
+        f"창은 {common.cell(rstats.get('window'), '최근 12개월')}, "
+        f"해당 건수는 {common.cell(rstats.get('count'), '0')}건이다. "
+        f"화면에는 요지만 실었고 아래가 헤드라인 원문이다. {recent_notes}",
+    )
+    add_body(prs.slides[-1], [
+        f"· {common.cell(r.get('headline'))[:84].rstrip()}…" for r in recent[:MAX_LINES]
+    ] + [
+        f"위 {len(recent)}건의 서술 원문은 보고서 4장과 발표자 노트에 그대로 있다."
+    ] if recent else ["최근 12개월 신규 공개 0건으로 확인되었다."])
 
     # 8~15. 주요 특허 카드 (상위 5~8건)
-    for rec in records[:8]:
+    #  수집 순서(P001~)는 중요도 순이 아니다. 권리가 살아 있는 등록건을 먼저,
+    #  같은 조건이면 최근 출원 순으로 상위 8건을 고른다.
+    status_rank = {"등록": 0, "출원 중(등록 미확인)": 1, "거절": 2, "포기": 3, "취하": 3, "소멸": 4}
+    grade_rank = {"상": 0, "중": 1, "하": 2}
+
+    def card_key(rec: dict):
+        date = str(rec.get("filing_date") or "0000-00-00")
+        return (
+            status_rank.get(str(rec.get("registration_status", "")).strip(), 5),
+            grade_rank.get(worst(rec.get("id", "?")), 3),
+            0 if str(rec.get("period_scope", "")).startswith("조사 기간 내") else 1,
+            tuple(-int(x) if x.isdigit() else 0 for x in (date.split("-") + ["0", "0", "0"])[:3]),
+            str(rec.get("id", "")),
+        )
+
+    top_records = sorted(records, key=card_key)[:8]
+    for rec in top_records:
         rid = rec.get("id", "?")
         grade = worst(rid)
         plain = common.cell(rec.get("plain_explanation"))
@@ -195,10 +243,19 @@ def main() -> int:
 
     # 16~17. 전체 목록 표
     rows_per_slide = 12
-    chunks = [records[i:i + rows_per_slide] for i in range(0, len(records), rows_per_slide)][:2]
+    # 목록도 카드와 같은 기준(권리 상태 → 신뢰도 → 최근 출원순)으로 정렬한 상위 건부터 싣는다.
+    ranked = sorted(records, key=card_key)
+    chunks = [ranked[i:i + rows_per_slide] for i in range(0, len(ranked), rows_per_slide)][:2]
+    shown = sum(len(c) for c in chunks)
     for pos, chunk in enumerate(chunks, start=1):
-        slide = add_slide(prs, f"특허 전체 목록 ({pos}/{len(chunks)})",
-                          "수집한 특허를 한자리에 모은 표다.")
+        first_id = common.cell(chunk[0].get("id"))
+        last_id = common.cell(chunk[-1].get("id"))
+        slide = add_slide(
+            prs, f"주요 특허 목록 ({pos}/{len(chunks)}) — 전체 {len(records)}건 중 {shown}건 발췌",
+            f"수집한 특허 {len(records)}건 가운데 이 슬라이드에는 {first_id}부터 {last_id}까지 "
+            f"{len(chunk)}건만 실었다. 발표 화면의 가독성 때문에 두 장에 {shown}건까지만 담았고, "
+            f"나머지 {len(records) - shown}건을 포함한 109건 전체 목록은 같은 날짜의 특허대장 엑셀 파일 "
+            f"'특허대장' 시트에 한 건도 빠짐없이 들어 있다. 질문이 나오면 그 파일을 열어 답한다.")
         table = slide.shapes.add_table(
             len(chunk) + 1, 5, Inches(0.5), Inches(1.4), Inches(12.3), Inches(0.4 * (len(chunk) + 1))
         ).table
@@ -217,11 +274,26 @@ def main() -> int:
                 for para in cell.text_frame.paragraphs:
                     for run in para.runs:
                         run.font.size = Pt(12)
+        note = slide.shapes.add_textbox(Inches(0.5), Inches(6.75), Inches(12.3), Inches(0.6))
+        npara = note.text_frame.paragraphs[0]
+        note.text_frame.word_wrap = True
+        npara.text = (
+            f"이 표는 전체 {len(records)}건 중 {shown}건만 발췌한 것이다. "
+            f"109건 전체 목록은 특허대장 엑셀 파일(PCVX_특허대장_{env['as_of_compact']}.xlsx)의 '특허대장' 시트를 보라."
+        )
+        npara.runs[0].font.size = Pt(18)
+        npara.runs[0].font.bold = True
 
     # 18. 신뢰도 등급 분포
     slide = add_slide(prs, f"항목의 {low_ratio * 100:.0f}퍼센트가 원문 미확인 상태다"
                       if low_ratio > 0.30 else "신뢰도는 항목 단위로 이렇게 나뉜다",
-                      "신뢰도 등급은 특허 건이 아니라 항목 단위로 매겼다.")
+                      f"신뢰도 등급은 특허 건이 아니라 항목 단위로 매겼다. "
+                      f"레코드 {len(records)}건에서 서지·날짜·법적상태·청구항 항목을 각각 채점해 "
+                      f"모두 {total}개 항목이 나왔고, 건당 평균 {total / max(len(records), 1):.1f}개다. "
+                      f"'상'은 특허청 원문과 독립 출처 두 곳이 일치한 항목, '중'은 2차 집계 데이터베이스 "
+                      f"한 곳에서만 확인한 항목, '하'는 원문 대조를 마치지 못한 항목이다. "
+                      f"'하' 비율은 {low_ratio * 100:.1f}퍼센트로 30퍼센트 기준선 아래이므로 "
+                      f"표지 경고 문구는 붙이지 않았다. 항목별 근거와 출처는 근거대장 파일에 있다.")
     add_body(slide, [
         f"높음(상) {dist.get('상', 0)}개 — 특허청 원문과 독립 출처 2곳이 일치",
         f"보통(중) {dist.get('중', 0)}개 — 2차 집계 데이터베이스 1곳에서 확인",
@@ -270,7 +342,9 @@ def main() -> int:
             f"법적 상태는 모두 {env['as_of']} 기준으로 확인했다.",
         ])
 
-    slug = common.slugify(topic.get("topic", "무제"))
+    # topic.json 이 축약 슬러그를 이미 확정해 두었으면 그것을 쓴다.
+    # topic 원문을 30자에서 자르면 괄호가 열린 채 끊긴 파일명이 나온다.
+    slug = common.slugify(topic.get("topic_slug") or topic.get("topic", "무제"))
     out = common.output_dir() / f"PCVX_특허조사보고서_{slug}_{env['as_of_compact']}.pptx"
     out.parent.mkdir(parents=True, exist_ok=True)
     prs.save(out)
