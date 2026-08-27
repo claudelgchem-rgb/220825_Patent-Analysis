@@ -271,7 +271,7 @@ def main() -> int:
         ])
 
     slug = common.slugify(topic.get("topic", "무제"))
-    out = Path(env["output_dir"]) / f"PCVX_특허조사보고서_{slug}_{env['as_of_compact']}.pptx"
+    out = common.output_dir() / f"PCVX_특허조사보고서_{slug}_{env['as_of_compact']}.pptx"
     out.parent.mkdir(parents=True, exist_ok=True)
     prs.save(out)
     count = len(prs.slides)

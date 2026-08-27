@@ -169,7 +169,7 @@ def main() -> int:
     sheet_queries(wb, queries)
     sheet_sources(wb, attempts, records)
 
-    out = Path(env["output_dir"]) / f"PCVX_특허대장_{env['as_of_compact']}.xlsx"
+    out = common.output_dir() / f"PCVX_특허대장_{env['as_of_compact']}.xlsx"
     out.parent.mkdir(parents=True, exist_ok=True)
     wb.save(out)
     print(f"[기준일: {env['as_of']} / 도구: build_xlsx]")

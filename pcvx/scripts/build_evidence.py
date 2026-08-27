@@ -128,7 +128,7 @@ def main() -> int:
             f"| {common.cell(a.get('failure') or a.get('note'), '정상 수행')} |"
         )
 
-    out = Path(env["output_dir"]) / f"PCVX_근거대장_{env['as_of_compact']}.md"
+    out = common.output_dir() / f"PCVX_근거대장_{env['as_of_compact']}.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"[기준일: {env['as_of']} / 도구: build_evidence]")
