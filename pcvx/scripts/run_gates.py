@@ -202,11 +202,24 @@ def gate_g8() -> list[str]:
     stamp = common.today_compact()
     expected = ["특허조사보고서", "특허대장", "근거대장", "감사로그"]
     files = list(out.glob("PCVX_*"))
+    # 오늘 날짜가 박힌 파일만 오늘의 산출물로 인정한다.
+    # (예전에는 이름만 맞으면 통과해서, 지난 날짜의 중간본이 오늘치 산출물을
+    #  대신 채워 넣어 누락을 가려 버렸다.)
+    today_files = [f for f in files if stamp in f.name]
     for key in expected:
-        if not any(key in f.name for f in files):
-            _fail(p, f"산출물 누락: PCVX_{key}_*")
+        if not any(key in f.name for f in today_files):
+            _fail(p, f"산출물 누락: PCVX_{key}_*_{stamp}")
     for f in files:
-        if stamp not in f.name:
+        if stamp in f.name:
+            continue
+        # 지난 날짜 파일은 '이미 사용자에게 보낸 중간본'일 수 있다. 그 종류의
+        # 오늘치 산출물이 실제로 있으면 갈음된 기록물로 보고 통과시킨다.
+        # 오늘치가 없으면 낡은 산출물을 내놓은 것이므로 그대로 미달이다.
+        kind = next((k for k in expected if k in f.name), None)
+        superseded = kind is not None and any(
+            kind in t.name for t in today_files
+        )
+        if not superseded:
             _fail(p, f"{f.name}: 파일명에 오늘 날짜({stamp})가 없다.")
     rc = subprocess.run(
         [sys.executable, str(common.SCRIPTS / "validate_report.py"), "--scan-outputs"],
